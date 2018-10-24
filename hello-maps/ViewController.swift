@@ -33,9 +33,6 @@ class ViewController: UIViewController, CLLocationManagerDelegate, MKMapViewDele
     @IBAction func showAddAddressView() {
         
         let alertVC = UIAlertController(title: "Add Address", message: nil, preferredStyle: .alert)
-        //Action sheet
-        
-        
         
         alertVC.addTextField { textField in
             
@@ -44,12 +41,41 @@ class ViewController: UIViewController, CLLocationManagerDelegate, MKMapViewDele
         let okAction = UIAlertAction(title: "Ok", style: .default) { action in
             
             if let textField = alertVC.textFields?.first {
-                self.reverseGeocode(address: textField.text!)
-                // reverse geocode the address
+                
+                self.reverseGeocode(address: textField.text!){ placemark in
+                    
+                    let startingMapItem = MKMapItem.forCurrentLocation()
+                    
+                    let destinationPlacemark = MKPlacemark(coordinate: (placemark.location?.coordinate)!)
+                    let destinationMapItem = MKMapItem(placemark: destinationPlacemark)
+                    
+                    let directionRequest = MKDirectionsRequest()
+                    directionRequest.transportType = .automobile
+                    directionRequest.source = startingMapItem
+                    directionRequest.destination = destinationMapItem
+                    
+                    let directions = MKDirections(request: directionRequest)
+                    directions.calculate(completionHandler: { (response, error ) in
+                        if let error = error{
+                            print(error.localizedDescription)
+                            return
+                        }
+                        guard let response = response, let route = response.routes.first
+                            else{
+                                return
+                        }
+                        
+                        if !route.steps.isEmpty{
+                            for step in route.steps{
+                                print(step.instructions)
+                            }
+                        }
+                    })
+                    MKMapItem.openMaps(with: [destinationMapItem], launchOptions: nil)
                 
             }
         }
-        
+        }
         let cancelAction = UIAlertAction(title: "Cancel", style: .cancel) { action in
             
         }
@@ -59,51 +85,29 @@ class ViewController: UIViewController, CLLocationManagerDelegate, MKMapViewDele
         
         self.present(alertVC, animated: true, completion: nil)
     }
-    func reverseGeocode(address: String){
-        let geoCoder = CLGeocoder()
+    
+    func reverseGeocode(address: String, completion: @escaping (CLPlacemark)->()){
+        let geocoder = CLGeocoder()
         
-        geoCoder.geocodeAddressString(address){ placemarks,error in
-           
+        geocoder.geocodeAddressString(address){(placemarks, error) in
+            
             if let error = error{
                 print(error.localizedDescription)
                 return
             }
-            
             guard let placemarks = placemarks, let placemark = placemarks.first else{
                 return
             }
-            self.addPlacemarkToMap(placemark : placemark)
+            
+            completion(placemark)
             
         }
     }
-    func addPlacemarkToMap(placemark : CLPlacemark){
-        let coordinate = placemark.location?.coordinate
-        let annotation = MKPointAnnotation()
-        
-        annotation.coordinate = coordinate!
-        self.mapView.addAnnotation(annotation)
-        
-        self.mapView.add(MKCircle(center: annotation.coordinate, radius: 200))
-    }
     
-    func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer{
-        if overlay is MKCircle{
-            var circleRenderer = MKCircleRenderer(circle: overlay as! MKCircle)
-            circleRenderer.lineWidth = 3.0
-            circleRenderer.strokeColor = UIColor.purple
-            circleRenderer.fillColor =  UIColor.purple
-            circleRenderer.alpha = 0.4
-            return circleRenderer
-        }
-        return MKOverlayRenderer()
-    }
     func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {
         
         let region = MKCoordinateRegion(center: mapView.userLocation.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008))
         
         mapView.setRegion(region, animated: true)
     }
-    
-
 }
-
